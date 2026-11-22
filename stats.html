@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>SwimPeak waitlist stats</title>
+<style>
+  :root{ color-scheme: dark; --aqua:#18c4d6; --aqua2:#4ee2e8; --muted:#8ea0bd; --text:#e6edf8; --soft:#cbd6e8; --bad:#ff6b7a; --good:#3ddc97; --gold:#ffc857; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; min-height:100vh; background:#070d1a radial-gradient(900px 500px at 50% -120px, rgba(24,196,214,.18), transparent 70%); color:var(--text);
+        font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+  .wrap{ max-width:820px; margin:0 auto; padding:calc(24px + env(safe-area-inset-top)) 18px calc(48px + env(safe-area-inset-bottom)); }
+  h1{ font-size:28px; margin:0 0 4px; }
+  h2{ font-size:19px; margin:34px 0 4px; }
+  .hint{ color:var(--muted); font-size:14px; margin:0 0 12px; }
+  .card{ background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1); border-radius:16px; padding:18px; }
+  input{ width:100%; padding:13px; border-radius:12px; border:1px solid rgba(255,255,255,.18); background:rgba(7,13,26,.8); color:var(--text); font:inherit; }
+  button{ padding:11px 16px; border:0; border-radius:12px; font:inherit; font-weight:700; color:#fff; cursor:pointer; background:linear-gradient(180deg,#3b82f6,#2563eb); }
+  button.ghost{ background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.2); font-weight:600; }
+  button.tab{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.18); font-weight:600; padding:8px 14px; }
+  button.tab.on{ background:var(--aqua); color:#04222a; border-color:var(--aqua); }
+  .row{ display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; }
+  .between{ justify-content:space-between; align-items:center; margin:0 0 16px; }
+  .err{ color:var(--bad); min-height:20px; margin-top:10px; font-size:14px; }
+  .big{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  @media (max-width:560px){ .big{ grid-template-columns:1fr; } }
+  .stat{ padding:18px 16px; border-radius:14px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1); }
+  .stat b{ display:block; font-size:42px; color:var(--aqua2); line-height:1.05; }
+  .stat .t{ display:block; font-weight:700; margin-top:4px; }
+  .stat .d{ display:block; color:var(--muted); font-size:13px; margin-top:2px; }
+  ul.glance{ margin:0; padding:0; list-style:none; }
+  ul.glance li{ padding:9px 0 9px 28px; position:relative; border-bottom:1px solid rgba(255,255,255,.07); }
+  ul.glance li:last-child{ border-bottom:0; }
+  ul.glance li::before{ content:""; position:absolute; left:4px; top:16px; width:10px; height:10px; border-radius:50%; background:var(--aqua); }
+  ul.glance b{ color:var(--aqua2); }
+  .chartbox{ overflow-x:auto; }
+  svg{ display:block; width:100%; height:auto; }
+  #chart{ min-width:600px; }
+  @media (max-width:560px){ #chart.few{ min-width:0; } }
+  svg text{ font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+  .legend{ color:var(--muted); font-size:13px; margin-top:8px; }
+  .legend i{ display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
+  table{ width:100%; border-collapse:collapse; font-size:15px; }
+  th,td{ text-align:left; padding:10px 8px; border-bottom:1px solid rgba(255,255,255,.08); vertical-align:middle; }
+  th{ color:var(--muted); font-weight:600; font-size:13px; }
+  td.n, th.n{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  td.name small{ display:block; color:var(--muted); font-size:12px; }
+  .meter{ height:10px; border-radius:6px; background:rgba(255,255,255,.08); min-width:80px; }
+  .meter i{ display:block; height:100%; border-radius:6px; background:linear-gradient(90deg,var(--aqua),var(--aqua2)); }
+  .scroll{ overflow-x:auto; }
+  [hidden]{ display:none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>SwimPeak waitlist stats</h1>
+  <p class="hint">Private page. Shows counts only, never anyone's email.</p>
+
+  <section id="login" class="card">
+    <label for="pass" class="hint" style="display:block;margin-bottom:8px;">Stats passphrase</label>
+    <input id="pass" type="password" autocomplete="current-password" placeholder="Your passphrase">
+    <div class="row"><button id="go" type="button">Show stats</button></div>
+    <div class="err" id="err" role="status" aria-live="polite"></div>
+  </section>
+
+  <section id="dash" hidden>
+    <div class="row between">
+      <span class="hint" id="updated" style="margin:0"></span>
+      <span><button class="ghost" id="refresh" type="button">Refresh</button> <button class="ghost" id="lock" type="button">Lock</button></span>
+    </div>
+
+    <div class="big">
+      <div class="stat"><b id="sTotal">0</b><span class="t">People on your waitlist</span><span class="d">Everyone who has joined so far</span></div>
+      <div class="stat"><b id="sToday">0</b><span class="t">Joined today</span><span class="d" id="dToday">Since midnight UTC</span></div>
+      <div class="stat"><b id="sWeek">0</b><span class="t">Joined in the last 7 days</span><span class="d" id="dWeek"></span></div>
+    </div>
+
+    <h2>The short version</h2>
+    <p class="hint">What these numbers mean in plain English.</p>
+    <div class="card"><ul class="glance" id="glance"></ul></div>
+
+    <h2>New signups each day</h2>
+    <p class="hint">Each column is one day. The number above a column is how many people joined that day.</p>
+    <div class="row" style="margin:0 0 10px;">
+      <button class="tab" data-days="7" type="button">7 days</button>
+      <button class="tab on" data-days="14" type="button">14 days</button>
+      <button class="tab" data-days="30" type="button">30 days</button>
+    </div>
+    <div class="card">
+      <div class="chartbox"><svg id="chart" viewBox="0 0 760 360" role="img" aria-label="Column chart of new signups per day"></svg></div>
+      <div class="legend"><i style="background:#4ee2e8"></i>Past days <i style="background:#ffc857;margin-left:12px"></i>Today (still counting) &nbsp;·&nbsp; days are in UTC</div>
+    </div>
+
+    <h2>Which video brought the most signups?</h2>
+    <p class="hint">"Day 8" means the 8th video you posted. Tracked links end in something like <b>?src=tt_d08</b> (tt = TikTok, ig = Instagram, yt = YouTube).</p>
+    <div class="card scroll"><table><thead><tr><th>Video</th><th class="n">Signups</th><th class="n">Share of all</th><th></th></tr></thead><tbody id="tVideo"></tbody></table></div>
+
+    <h2>Which platform brings the most?</h2>
+    <p class="hint">Adds up all your videos on each app.</p>
+    <div class="card scroll"><table><thead><tr><th>Platform</th><th class="n">Signups</th><th class="n">Share of all</th><th></th></tr></thead><tbody id="tPlat"></tbody></table></div>
+
+    <h2>Every link, one by one</h2>
+    <p class="hint">The exact link tags people came from. "No tag" means they found the page without one of your tracked links.</p>
+    <div class="card scroll"><table><thead><tr><th>Link</th><th class="n">Signups</th></tr></thead><tbody id="tSrc"></tbody></table></div>
+  </section>
+</div>
+
+<script>
+// Public "publishable" key (same one the waitlist page uses). On its own it cannot read anything:
+// the stats function only answers when you send the correct passphrase.
+const SUPABASE_URL = 'https://yqqwomftttedaaskghvj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_8dSqtHMLDwyPrfn7T1KyjQ_bwOpoSqz';
+const PLAT = { tt:'TikTok', ig:'Instagram', yt:'YouTube', app:'In-app share' };
+const $ = (id) => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+let DATA = null, RANGE = (window.innerWidth < 560 ? 7 : 14);
+
+// Everything from the database is inserted with textContent, never as HTML (link tags come from public URLs).
+function el(tag, cls, text){ const e = document.createElement(tag); if(cls) e.className = cls; if(text != null) e.textContent = text; return e; }
+function sv(tag, attrs, text){ const e = document.createElementNS(NS, tag); for(const k in attrs) e.setAttribute(k, attrs[k]); if(text != null) e.textContent = text; return e; }
+const pct = (n, t) => (t ? Math.round(n / t * 100) : 0);
+const fmtDate = (iso) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US', { weekday:'short', day:'numeric', month:'short', timeZone:'UTC' });
+
+function parse(src){
+  const m = /^([a-z]+)_d(\d{1,3})$/i.exec(src);
+  if(m) return { plat: PLAT[m[1].toLowerCase()] || m[1], day: Number(m[2]) };
+  if(PLAT[src]) return { plat: PLAT[src], day: null };
+  return { plat: src === '(none)' ? 'No tag' : 'Other', day: null };
+}
+function friendly(src){
+  const p = parse(src);
+  if(src === '(none)') return 'No tag';
+  return p.day != null ? `${p.plat} · Day ${p.day}` : (PLAT[src] ? p.plat : src);
+}
+
+// "Nice" axis: pick a step so there are at most 5 gridlines, and round the top up to a whole step.
+function niceAxis(max){
+  if(max <= 5) return { top: 5, step: 1 };
+  const steps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
+  const step = steps.find(s => Math.ceil(max / s) <= 5) || 10000;
+  return { top: Math.ceil(max / step) * step, step };
+}
+
+function lastDays(n){
+  const by = new Map((DATA.by_day || []).map(r => [String(r.day).slice(0, 10), Number(r.n)]));
+  const now = new Date(), out = [];
+  for(let i = n - 1; i >= 0; i--){
+    const iso = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i)).toISOString().slice(0, 10);
+    out.push({ iso, n: by.get(iso) || 0, today: i === 0 });
+  }
+  return out;
+}
+
+function drawChart(){
+  const days = lastDays(RANGE), svg = $('chart'); svg.textContent = ''; svg.classList.toggle('few', RANGE <= 7);
+  const W = 760, H = 360, L = 58, R = 14, T = 30, B = 62, pw = W - L - R, ph = H - T - B;
+  const max = Math.max(...days.map(d => d.n), 0), ax = niceAxis(max);
+
+  // gridlines + numbers on the left
+  for(let v = 0; v <= ax.top; v += ax.step){
+    const y = T + ph - (v / ax.top) * ph;
+    svg.appendChild(sv('line', { x1: L, x2: W - R, y1: y, y2: y, stroke: v === 0 ? '#8ea0bd' : 'rgba(255,255,255,.12)', 'stroke-width': v === 0 ? 1.5 : 1 }));
+    svg.appendChild(sv('text', { x: L - 10, y: y + 5, 'text-anchor': 'end', fill: '#cbd6e8', 'font-size': 14 }, String(v)));
+  }
+  svg.appendChild(sv('text', { x: 16, y: T + ph / 2, fill: '#8ea0bd', 'font-size': 13, 'text-anchor': 'middle', transform: `rotate(-90 16 ${T + ph / 2})` }, 'New signups'));
+
+  const slot = pw / days.length, bw = Math.min(46, slot * 0.68);
+  const every = RANGE <= 14 ? 1 : (RANGE <= 21 ? 2 : 3);
+  days.forEach((d, i) => {
+    const cx = L + slot * i + slot / 2, h = (d.n / ax.top) * ph, y = T + ph - h;
+    if(d.n > 0){
+      svg.appendChild(sv('rect', { x: cx - bw / 2, y, width: bw, height: h, rx: 4, fill: d.today ? '#ffc857' : '#4ee2e8' }));
+      svg.appendChild(sv('text', { x: cx, y: y - 7, 'text-anchor': 'middle', fill: '#ffffff', 'font-size': RANGE > 14 ? 12 : 15, 'font-weight': 700 }, String(d.n)));
+    } else if(RANGE <= 14){
+      svg.appendChild(sv('text', { x: cx, y: T + ph - 7, 'text-anchor': 'middle', fill: '#8ea0bd', 'font-size': 13 }, '0'));
+    }
+    const showLabel = d.today || (every === 1) || ((days.length - 1 - i) % every === 0 && i < days.length - 1 && (days.length - 1 - i) > 1);
+    if(showLabel){
+      const dt = new Date(d.iso + 'T00:00:00Z');
+      const wd = dt.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
+      const dn = dt.getUTCDate(), mo = dt.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
+      const col = d.today ? '#ffc857' : '#cbd6e8';
+      svg.appendChild(sv('text', { x: cx, y: T + ph + 20, 'text-anchor': 'middle', fill: col, 'font-size': RANGE > 14 ? 12 : 13, 'font-weight': d.today ? 700 : 400 }, d.today ? 'Today' : wd));
+      svg.appendChild(sv('text', { x: cx, y: T + ph + 38, 'text-anchor': 'middle', fill: col, 'font-size': RANGE > 14 ? 12 : 13 }, `${dn} ${mo}`));
+    }
+    const tip = sv('title', {}, `${fmtDate(d.iso)}: ${d.n} signup${d.n === 1 ? '' : 's'}`);
+    const hit = sv('rect', { x: cx - slot / 2, y: T, width: slot, height: ph + B - 20, fill: 'transparent' }); hit.appendChild(tip); svg.appendChild(hit);
+  });
+}
+
+function rowWithMeter(tb, name, n, total, sub){
+  const tr = el('tr'), td = el('td', 'name', name);
+  if(sub){ td.appendChild(el('small', null, sub)); }
+  tr.appendChild(td); tr.appendChild(el('td', 'n', n.toLocaleString())); tr.appendChild(el('td', 'n', pct(n, total) + '%'));
+  const m = el('td'), box = el('div', 'meter'), bar = el('i'); bar.style.width = Math.max(2, pct(n, total)) + '%'; box.appendChild(bar); m.appendChild(box); tr.appendChild(m);
+  tb.appendChild(tr);
+}
+function emptyRow(tb, cols){ const tr = el('tr'), td = el('td', null, 'No signups yet. They will show up here once people join through a tracked link.'); td.colSpan = cols; tr.appendChild(td); tb.appendChild(tr); }
+
+function render(){
+  const d = DATA, total = Number(d.total) || 0, today = Number(d.today) || 0, week = Number(d.last7) || 0;
+  $('sTotal').textContent = total.toLocaleString(); $('sToday').textContent = today.toLocaleString(); $('sWeek').textContent = week.toLocaleString();
+  $('dWeek').textContent = `About ${(week / 7).toFixed(1)} new people per day`;
+
+  const src = (d.by_source || []).map(r => ({ src: String(r.source), n: Number(r.n) }));
+  const vid = new Map(), plat = new Map();
+  src.forEach(r => {
+    const p = parse(r.src);
+    plat.set(p.plat, (plat.get(p.plat) || 0) + r.n);
+    if(p.day != null) vid.set(p.day, (vid.get(p.day) || 0) + r.n);
+  });
+  const vids = [...vid.entries()].sort((a, b) => b[1] - a[1]);
+  const plats = [...plat.entries()].sort((a, b) => b[1] - a[1]);
+  const noTag = src.filter(r => r.src === '(none)').reduce((s, r) => s + r.n, 0);
+
+  // short version, in plain English
+  const g = $('glance'); g.textContent = '';
+  const add = (parts) => { const li = el('li'); parts.forEach(p => li.appendChild(p.b ? el('b', null, p.t) : document.createTextNode(p.t))); g.appendChild(li); };
+  add([{ t: `${total.toLocaleString()} ` , b: 1 }, { t: total === 1 ? 'person is on your waitlist.' : 'people are on your waitlist.' }]);
+  add([{ t: `${today} ` , b: 1 }, { t: `joined today and ` }, { t: `${week} `, b: 1 }, { t: `in the last 7 days (about ${(week / 7).toFixed(1)} a day).` }]);
+  const days30 = lastDays(30), best = days30.reduce((a, b) => (b.n > a.n ? b : a), { n: 0 });
+  if(best.n > 0) add([{ t: 'Your best day in the last 30 days was ' }, { t: fmtDate(best.iso), b: 1 }, { t: ` with ` }, { t: `${best.n} `, b: 1 }, { t: best.n === 1 ? 'signup.' : 'signups.' }]);
+  if(vids.length) add([{ t: 'The video that brought the most signups is ' }, { t: `Day ${vids[0][0]}`, b: 1 }, { t: ` (${vids[0][1]} people, ${pct(vids[0][1], total)}% of everyone).` }]);
+  if(plats.length && plats[0][0] !== 'No tag') add([{ t: `${plats[0][0]} `, b: 1 }, { t: `brings in the most people (${pct(plats[0][1], total)}%).` }]);
+  if(noTag > 0) add([{ t: `${noTag} `, b: 1 }, { t: `signup${noTag === 1 ? ' has' : 's have'} no link tag, so they found the page without one of your tracked links.` }]);
+  if(total === 0) add([{ t: 'No signups yet. Put a tracked link in your bio and they will start to show up here.' }]);
+
+  drawChart();
+
+  const tv = $('tVideo'); tv.textContent = '';
+  if(!vids.length) emptyRow(tv, 4); else vids.forEach(([day, n]) => rowWithMeter(tv, `Day ${day} video`, n, total));
+  const tp = $('tPlat'); tp.textContent = '';
+  if(!plats.length) emptyRow(tp, 4); else plats.forEach(([name, n]) => rowWithMeter(tp, name, n, total));
+  const ts = $('tSrc'); ts.textContent = '';
+  if(!src.length) emptyRow(ts, 2);
+  else src.forEach(r => { const tr = el('tr'), td = el('td', 'name', friendly(r.src)); td.appendChild(el('small', null, r.src === '(none)' ? 'no ?src= in the link' : '?src=' + r.src)); tr.appendChild(td); tr.appendChild(el('td', 'n', r.n.toLocaleString())); ts.appendChild(tr); });
+
+  $('updated').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · days are in UTC';
+}
+
+async function load(pass){
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/waitlist_stats`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+    body: JSON.stringify({ p_pass: pass })
+  });
+  let data = null; try{ data = await res.json(); }catch(e){}
+  if(!res.ok){
+    const text = String((data && (data.message || data.hint)) || '');
+    if(text.includes('not_allowed')) throw new Error('Wrong passphrase.');
+    if(res.status === 404 || text.includes('Could not find')) throw new Error('Stats function not found. Run swimpeak_stats_setup.sql in Supabase first.');
+    throw new Error('Something went wrong' + (text ? ': ' + text.slice(0, 160) : '.'));
+  }
+  return data;
+}
+async function show(pass){
+  $('err').textContent = '';
+  try{
+    DATA = await load(pass); render();
+    sessionStorage.setItem('sp_stats_pass', pass);
+    $('login').hidden = true; $('dash').hidden = false;
+  }catch(e){ $('err').textContent = e.message; $('login').hidden = false; $('dash').hidden = true; sessionStorage.removeItem('sp_stats_pass'); }
+}
+$('go').addEventListener('click', () => { const p = $('pass').value; if(p) show(p); });
+$('pass').addEventListener('keydown', (e) => { if(e.key === 'Enter') $('go').click(); });
+$('refresh').addEventListener('click', () => show(sessionStorage.getItem('sp_stats_pass') || ''));
+$('lock').addEventListener('click', () => { sessionStorage.removeItem('sp_stats_pass'); $('pass').value = ''; $('dash').hidden = true; $('login').hidden = false; });
+document.querySelectorAll('button.tab').forEach(b => b.addEventListener('click', () => {
+  RANGE = Number(b.dataset.days);
+  document.querySelectorAll('button.tab').forEach(x => x.classList.toggle('on', x === b));
+  if(DATA) drawChart();
+}));
+document.querySelectorAll('button.tab').forEach(x => x.classList.toggle('on', Number(x.dataset.days) === RANGE));
+const saved = sessionStorage.getItem('sp_stats_pass'); if(saved) show(saved);
+</script>
+</body>
+</html>
